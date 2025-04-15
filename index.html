@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Voice Assistant</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #f4f8fb;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px;
+    }
+
+    h1 {
+      color: #333;
+      margin-bottom: 20px;
+    }
+
+    #queryBox {
+      width: 320px;
+      padding: 10px 12px;
+      font-size: 15px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      background-color: #f1f1f1;
+      margin-bottom: 15px;
+    }
+
+    button {
+      background-color: #4a90e2;
+      color: white;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 20px;
+      font-size: 16px;
+      cursor: pointer;
+      transition: background-color 0.2s ease;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+
+    button:hover {
+      background-color: #357ab8;
+    }
+
+    #transcriptionBox {
+      width: 340px;
+      height: 180px;
+      border: 1px solid #ddd;
+      background-color: #fff;
+      margin-top: 25px;
+      padding: 12px;
+      font-size: 14px;
+      overflow-y: auto;
+      border-radius: 10px;
+      box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.05);
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+<body>
+  <h1>🎙️ Ask me something!</h1>
+  <input type="text" id="queryBox" placeholder="Speech will show here..." disabled>
+  <button onclick="startListening()">🎤 Start Speaking</button>
+  
+  <div id="transcriptionBox"></div> <!-- Transcription Box -->
+
+
+  <script>
+    let recognition;
+    let isListening = false;
+
+    function speakText(text) {
+      return new Promise((resolve) => {
+        const synth = window.speechSynthesis;
+        const utterance = new SpeechSynthesisUtterance(text);
+    
+        utterance.rate = 1;
+        utterance.pitch = 1;
+        utterance.volume = 1;
+    
+        utterance.onend = resolve;
+        synth.speak(utterance);
+      });
+    }
+    
+    async function sendQueryToServer(transcript) {
+      document.getElementById("queryBox").value = transcript;
+      document.getElementById("transcriptionBox").innerText = `You said: ${transcript}`; // Displaying transcript in box
+      const response = await fetch("http://localhost:5000/search", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: transcript })
+      });
+    
+      const data = await response.json();
+      const reply = data.response || "Sorry, I couldn't find anything.";
+      
+      // Display assistant's response
+      document.getElementById("transcriptionBox").innerText += `\nAssistant: ${reply}`;
+    
+      // Split the reply into smaller chunks if it's too long
+      const chunks = reply.split('.');  // Split by periods, you can use other delimiters if needed
+    
+      // Read out the chunks one by one
+      for (const chunk of chunks) {
+        if (chunk.trim()) {
+          await speakText(chunk.trim() + '.');  // Wait until each chunk is done
+        }
+      }
+      
+    }
+    function startListening() {
+      if (isListening) return; // Prevent starting multiple recognitions
+
+      recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+      recognition.lang = 'en-US';
+      recognition.interimResults = false;
+      recognition.maxAlternatives = 1;
+      isListening = true;
+
+      recognition.start();
+
+      recognition.onresult = (event) => {
+        const transcript = event.results[0][0].transcript;
+        sendQueryToServer(transcript);
+      };
+
+      recognition.onerror = (event) => {
+        document.getElementById("transcriptionBox").innerText = "Sorry, I couldn't hear that clearly.";
+        isListening = false; // Reset listening flag
+      };
+
+      recognition.onend = () => {
+        isListening = false; // Reset listening flag
+      };
+    }
+  </script>
+</body>
+</html>
+
+
